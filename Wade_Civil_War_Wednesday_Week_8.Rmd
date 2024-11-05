@@ -1,0 +1,213 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## Front Matter
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(nflreadr)
+library(nflplotR)
+library(tidyverse)
+library(nflfastR)
+library(gt)
+library(gtExtras)
+library(ggimage)
+```
+
+## Load Data & Add Variables
+
+```{r}
+playerstats <- load_pbp(seasons = most_recent_season())
+
+# Find Data & Add Needed Variables
+playerstats <- calculate_player_stats(playerstats, weekly = T) %>% mutate(incompletions = attempts - completions, pass_300 = ifelse(passing_yards > 299 & passing_yards < 399.5,1,0), pass_400 = ifelse(passing_yards > 399.5,1,0), rec_100 = ifelse(receiving_yards > 99.5 & receiving_yards < 199.5,1,0), rec_200 = ifelse(receiving_yards > 199.5,1,0), rush_100 = ifelse(rushing_yards > 99.5 & rushing_yards < 199.5,1,0), rush_200 = ifelse(rushing_yards > 199.5,1,0), fumbles = sack_fumbles_lost + rushing_fumbles_lost + receiving_fumbles_lost, rush_10 = trunc(carries/10))
+
+
+```
+
+## Create Fantasy Function
+
+```{r}
+civil_war_fantasy_calculator <- function(playerstats, pass_yards_pts = 0.04, completed_pts = 1, incomplete_pts = -0.5, pass_td_pts = 6, int_pts = -3, pass_2conv_pts = 2, p300_pts = 2, p400_pts = 5, sack_pts = -2, rush_yards_pts = 0.1, rush_10_pts = 0.5, rush_td_pts = 6, rush_first_pts = 1, rush_2conv_pts = 2, r100_pts = 2, r200_pts = 5, rec_yards_pts = 0.1, rec_pts = 1, rec_td_pts = 6, rec_2conv_pts = 2, rec100_pts = 2, rec200_pts = 5, tar_pts = 0.1, fumble_pts = -2) {
+  playerstats <- playerstats %>% mutate(pass_points = (passing_yards * pass_yards_pts) + (completions * completed_pts) + (incompletions * incomplete_pts) + (passing_tds * pass_td_pts) + (interceptions * int_pts) + (passing_2pt_conversions * pass_2conv_pts) + (pass_300 * p300_pts) + (pass_400 * p400_pts) + (sacks * sack_pts) + (fumbles * fumble_pts), rush_points = (rushing_yards * rush_yards_pts) + (rush_10 * rush_10_pts) + (rushing_tds * rush_td_pts) + (rushing_first_downs * rush_first_pts) + (rushing_2pt_conversions * rush_2conv_pts) + (rush_100 * r100_pts) + (rush_200 * r200_pts), rec_points = (receiving_yards * rec_yards_pts) + (receptions * rec_pts) + (receiving_tds * rec_td_pts) + (receiving_2pt_conversions * rec_2conv_pts) + (rec_100 * rec100_pts) + (rec_200 * rec200_pts) + (targets * tar_pts), total_points = pass_points + rush_points + rec_points)
+  return(playerstats)
+}
+```
+
+## QB Report
+
+```{r}
+fantasy_qb_week_8 <- playerstats %>% filter(week == 8, position == "QB", attempts > 10)
+
+wade_civil_war_qb8 <- civil_war_fantasy_calculator(fantasy_qb_week_8)
+
+#plot_for_qb8 <- ggplot(wade_civil_war_qb8, aes(x = total_points, y = total_points)) + geom_mean_lines(aes(x0 = total_points, y0 = total_points)) + geom_nfl_headshots(aes(player_gsis = player_id), width = 0.055)
+
+#plot_for_qb8
+
+teams <- load_teams() %>% select(posteam = team_abbr, espn_logo = team_logo_espn)
+
+rost <- load_rosters(2024) %>% select(gsis_id, full_name, headshot_url)
+
+wade_civil_war_qb8 <- wade_civil_war_qb8 %>% left_join(teams, by = c("recent_team" = "posteam"))
+
+wade_civil_war_qb8 <- wade_civil_war_qb8 %>% left_join(rost, by = c("player_display_name" = "full_name"))
+
+
+qb_data_table <- wade_civil_war_qb8 %>% select(player_id, player_name, espn_logo, total_points, headshot_url.x) %>% arrange(desc(total_points))
+
+logos <- qb_data_table %>% select(name = player_name, headshot_url = headshot_url.x) %>% deframe()
+
+qb_data_table <- qb_data_table %>% select(Player = player_name, Team = espn_logo, Points = total_points)
+```
+
+
+```{r}
+# Create the gt table with custom styles
+table_for_qb8 <- qb_data_table %>%
+  gt() %>%
+  
+  # Add player headshots next to names
+  text_transform(
+    locations = cells_body(columns = "Player"),
+    fn = function(x) {
+      lapply(x, function(x) {
+        gt::html(paste(
+          web_image(url = logos[[x]], height = 50), 
+          x
+        ))
+      })
+    }
+  ) %>%
+
+  # Add team logos next to team names
+  gt_img_rows(columns = "Team", img_source = "web", height = 50) %>%
+
+  # Apply theme and format the numbers
+  gt_theme_espn() %>%
+  fmt_number(columns = "Team", decimals = 2) %>%
+  
+  # Add a header and font styling
+  tab_header(title = "Top Fantasy QBs in Week 8") %>%
+  opt_table_font(font = list(
+    google_font(name = "Roboto Condensed"), 
+    default_fonts()
+  )) %>%
+  opt_table_lines()  # Optional: adds extra lines for emphasis
+
+```
+
+```{r}
+table_for_qb8
+```
+
+## RB Report
+
+```{r}
+fantasy_rb_week_8 <- playerstats %>% filter(week == 8, position == "RB")
+wade_civil_war_rb8 <- civil_war_fantasy_calculator(fantasy_rb_week_8)
+
+wade_civil_war_rb8 <- wade_civil_war_rb8 %>% left_join(teams, by = c("recent_team" = "posteam"))
+
+wade_civil_war_rb8 <- wade_civil_war_rb8 %>% left_join(rost, by = c("player_display_name" = "full_name"))
+
+rb_data_table <- wade_civil_war_rb8 %>% select(player_id, player_name, espn_logo, total_points, headshot_url.x) %>% arrange(desc(total_points)) %>% slice_head(n = 20)
+
+logos <- rb_data_table %>% select(name = player_name, headshot_url = headshot_url.x) %>% deframe()
+
+rb_data_table <- rb_data_table %>% select(Player = player_name, Team = espn_logo, Points = total_points)
+```
+
+```{r}
+# Create the gt table with custom styles
+table_for_rb8 <- rb_data_table %>%
+  gt() %>%
+  
+  # Add player headshots next to names
+  text_transform(
+    locations = cells_body(columns = "Player"),
+    fn = function(x) {
+      lapply(x, function(x) {
+        gt::html(paste(
+          web_image(url = logos[[x]], height = 50), 
+          x
+        ))
+      })
+    }
+  ) %>%
+
+  # Add team logos next to team names
+  gt_img_rows(columns = "Team", img_source = "web", height = 50) %>%
+
+  # Apply theme and format the numbers
+  gt_theme_espn() %>%
+  fmt_number(columns = "Team", decimals = 2) %>%
+  
+  # Add a header and font styling
+  tab_header(title = "Top Fantasy RBs in Week 8") %>%
+  opt_table_font(font = list(
+    google_font(name = "Roboto Condensed"), 
+    default_fonts()
+  )) %>%
+  opt_table_lines()  # Optional: adds extra lines for emphasis
+
+table_for_rb8
+```
+
+## WR Report
+
+```{r}
+fantasy_wr_week_8 <- playerstats %>% filter(week == 8, position == "WR")
+wade_civil_war_wr8 <- civil_war_fantasy_calculator(fantasy_wr_week_8)
+
+wade_civil_war_wr8 <- wade_civil_war_wr8 %>% left_join(teams, by = c("recent_team" = "posteam"))
+
+wade_civil_war_wr8 <- wade_civil_war_wr8 %>% left_join(rost, by = c("player_display_name" = "full_name"))
+
+wr_data_table <- wade_civil_war_wr8 %>% select(player_id, player_name, espn_logo, total_points, headshot_url.x) %>% arrange(desc(total_points)) %>% slice_head(n = 20)
+
+logos <- wr_data_table %>% select(name = player_name, headshot_url = headshot_url.x) %>% deframe()
+
+wr_data_table <- wr_data_table %>% select(Player = player_name, Team = espn_logo, Points = total_points)
+```
+
+```{r}
+# Create the gt table with custom styles
+table_for_wr8 <- wr_data_table %>%
+  gt() %>%
+  
+  # Add player headshots next to names
+  text_transform(
+    locations = cells_body(columns = "Player"),
+    fn = function(x) {
+      lapply(x, function(x) {
+        gt::html(paste(
+          web_image(url = logos[[x]], height = 50), 
+          x
+        ))
+      })
+    }
+  ) %>%
+
+  # Add team logos next to team names
+  gt_img_rows(columns = "Team", img_source = "web", height = 50) %>%
+
+  # Apply theme and format the numbers
+  gt_theme_espn() %>%
+  fmt_number(columns = "Team", decimals = 2) %>%
+  
+  # Add a header and font styling
+  tab_header(title = "Top Fantasy WRs in Week 8") %>%
+  opt_table_font(font = list(
+    google_font(name = "Roboto Condensed"), 
+    default_fonts()
+  )) %>%
+  opt_table_lines()  # Optional: adds extra lines for emphasis
+
+table_for_wr8
+```
+
+

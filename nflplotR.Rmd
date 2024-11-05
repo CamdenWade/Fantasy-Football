@@ -1,0 +1,122 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(nflreadr)
+library(nflplotR)
+library(tidyverse)
+library(gsisdecoder)
+library(nflfastR)
+```
+
+```{r}
+pbp <- load_participation(season = 2023, include_pbp = T)
+
+pass_rush_epa <- pbp %>% filter(pass == 1) %>% group_by(defteam) %>% summarize(plays = n(), avg_pass_rush = round(mean(number_of_pass_rushers, na.rm = T), 3), epa = mean(epa, na.rm = T))
+
+```
+
+```{r}
+ggplot(pass_rush_epa, aes(x = avg_pass_rush, y = epa)) + geom_mean_lines(aes(x0 = avg_pass_rush, y0 = epa)) + geom_nfl_logos(aes(team_abbr = defteam), width = 0.055)
+```
+
+
+
+```{r}
+nfl_passing <- read.csv("~/Desktop/NFL Passing.csv")
+
+nfl_passing <- nfl_passing %>% mutate(TEAM = TT) %>% select(-TT)
+
+#ggplot(nfl_passing, aes(x = YDS, y = TD)) + geom_point() + geom_nfl_headshots(aes(player_gsis = PLAYER.NAME), width = 0.055)
+```
+
+```{r}
+pbp_2 <- load_pbp(seasons = most_recent_season())
+
+pbp_2 <- pbp_2 %>% filter(pass_attempt == 1) %>% filter(passer_player_name == "K.Murray" | passer_player_name == "J.Allen" | passer_player_name == "L.Jackson") 
+
+pbp_2 <- pbp_2 %>% select(passer_player_id, passer_player_name, passing_yards, air_epa)
+
+pbp_2 <- pbp_2 %>% group_by(passer_player_name, passer_player_id) %>% summarize(avg_air_epa = mean(air_epa, na.rm = T), avg_passing_yards = mean(passing_yards, na.rm = T))
+
+ggplot(pbp_2, mapping = aes(x = avg_air_epa, y = avg_passing_yards)) + geom_mean_lines(aes(x0 = avg_air_epa, y0 = avg_passing_yards)) + geom_nfl_headshots(aes(player_gsis = passer_player_id), width = .1) 
+
+
+#pass_yards <- pbp_2 %>% filter(pass == 1) %>% group_by(passer_player_id) %>% summarize(plays = n(), avg_pass_yards = round(mean(passing_yards, na.rm = T)))
+
+#ggplot(pass_yards, aes(x = avg_pass_yards, y = plays)) + geom_point() + geom_nfl_headshots(aes(player_gsis = passer_player_id), width = 0.055)
+```
+
+```{r}
+pbp_3 <- load_pbp(seasons = most_recent_season())
+
+pbp_3 <- pbp_3 %>% filter(pass_attempt == 1)
+
+pbp_3 <- pbp_3 %>% select(passer_player_id, passer_player_name, passing_yards, air_epa)
+
+pbp_3 <- pbp_3 %>% group_by(passer_player_name, passer_player_id) %>% summarize(avg_air_epa = mean(air_epa, na.rm = T), avg_passing_yards = mean(passing_yards, na.rm = T), number_of_passes = n()) %>% filter(number_of_passes > 60)
+
+plot_for_current_qbs <- ggplot(pbp_3, mapping = aes(x = avg_air_epa, y = avg_passing_yards)) + geom_mean_lines(aes(x0 = avg_air_epa, y0 = avg_passing_yards)) + geom_nfl_headshots(aes(player_gsis = passer_player_id), width = 0.055)
+
+plot_for_current_qbs
+```
+
+```{r}
+current_defenses <- load_pbp(seasons = most_recent_season())
+
+
+```
+
+```{r}
+playerstats <- load_pbp(seasons = most_recent_season())
+
+# Find Data & Add Needed Variables
+playerstats <- calculate_player_stats(playerstats, weekly = T) %>% mutate(incompletions = attempts - completions, pass_300 = ifelse(passing_yards > 299 & passing_yards < 399.5,1,0), pass_400 = ifelse(passing_yards > 399.5,1,0), rec_100 = ifelse(receiving_yards > 99.5 & receiving_yards < 199.5,1,0), rec_200 = ifelse(receiving_yards > 199.5,1,0), rush_100 = ifelse(rushing_yards > 99.5 & rushing_yards < 199.5,1,0), rush_200 = ifelse(rushing_yards > 199.5,1,0), fumbles = sack_fumbles_lost + rushing_fumbles_lost + receiving_fumbles_lost, rush_10 = trunc(carries/10))
+
+
+#fantasy_qb_week_7 <- playerstats %>% mutate(incompletions = attempts - completions, pass_300 = ifelse(passing_yards > 299 + passing_yards < 400,1,0)) %>% filter(week == 7, position == "QB")
+
+
+
+
+```
+
+```{r}
+civil_war_fantasy_calculator <- function(playerstats, pass_yards_pts = 0.04, completed_pts = 1, incomplete_pts = -0.5, pass_td_pts = 6, int_pts = -3, pass_2conv_pts = 2, p300_pts = 2, p400_pts = 5, sack_pts = -2, rush_yards_pts = 0.1, rush_10_pts = 0.5, rush_td_pts = 6, rush_first_pts = 1, rush_2conv_pts = 2, r100_pts = 2, r200_pts = 5, rec_yards_pts = 0.1, rec_pts = 1, rec_td_pts = 6, rec_2conv_pts = 2, rec100_pts = 2, rec200_pts = 5, tar_pts = 0.1, fumble_pts = -2) {
+  playerstats <- playerstats %>% mutate(pass_points = (passing_yards * pass_yards_pts) + (completions * completed_pts) + (incompletions * incomplete_pts) + (passing_tds * pass_td_pts) + (interceptions * int_pts) + (passing_2pt_conversions * pass_2conv_pts) + (pass_300 * p300_pts) + (pass_400 * p400_pts) + (sacks * sack_pts) + (fumbles * fumble_pts), rush_points = (rushing_yards * rush_yards_pts) + (rush_10 * rush_10_pts) + (rushing_tds * rush_td_pts) + (rushing_first_downs * rush_first_pts) + (rushing_2pt_conversions * rush_2conv_pts) + (rush_100 * r100_pts) + (rush_200 * r200_pts), rec_points = (receiving_yards * rec_yards_pts) + (receptions * rec_pts) + (receiving_tds * rec_td_pts) + (receiving_2pt_conversions * rec_2conv_pts) + (rec_100 * rec100_pts) + (rec_200 * rec200_pts) + (targets * tar_pts), total_points = pass_points + rush_points + rec_points)
+  return(playerstats)
+}
+```
+
+```{r}
+fantasy_qb_week_7 <- playerstats %>% filter(week == 7, position == "QB")
+
+wade_civil_war_qb7 <- civil_war_fantasy_calculator(fantasy_qb_week_7)
+
+plot_for_qb7 <- ggplot(wade_civil_war_qb7, aes(x = total_points, y = total_points)) + geom_mean_lines(aes(x0 = total_points, y0 = total_points)) + geom_nfl_headshots(aes(player_gsis = player_id), width = 0.055)
+
+plot_for_qb7
+```
+
+```{r}
+fantasy_rb_week_7 <- playerstats %>% filter(week == 7, position == "RB")
+
+wade_civil_war_rb7 <- civil_war_fantasy_calculator(fantasy_rb_week_7)
+
+plot_for_rb7 <- ggplot(wade_civil_war_rb7, aes(x = total_points, y = total_points)) + geom_mean_lines(aes(x0 = total_points, y0 = total_points)) + geom_nfl_headshots(aes(player_gsis = player_id), width = 0.055)
+
+plot_for_rb7
+```
+
+```{r}
+fantasy_wr_week_7 <- playerstats %>% filter(week == 7, position == "WR")
+
+wade_civil_wr_wr7 <- civil_war_fantasy_calculator(fantasy_wr_week_7)
+
+plot_for_wr7 <- ggplot(wade_civil_wr_wr7, aes(x = total_points, y = total_points)) + geom_mean_lines(aes(x0 = total_points, y0 = total_points)) + geom_nfl_headshots(aes(player_gsis = player_id), width = 0.055)
+
+plot_for_wr7
+```
+

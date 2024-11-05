@@ -1,0 +1,85 @@
+---
+title: "Wade Civil War Week 7 Report"
+author: Camden Wade
+date: October 24, 2024
+output: html_notebook
+---
+
+## Front Matter
+
+```{r}
+library(nflreadr)
+library(nflplotR)
+library(tidyverse)
+library(nflfastR)
+```
+
+## Find Data & Add Neccessary Variables
+
+```{r}
+playerstats <- load_pbp(seasons = most_recent_season())
+
+# Find Data & Add Needed Variables
+playerstats <- calculate_player_stats(playerstats, weekly = T) %>% mutate(incompletions = attempts - completions, pass_300 = ifelse(passing_yards > 299 & passing_yards < 399.5,1,0), pass_400 = ifelse(passing_yards > 399.5,1,0), rec_100 = ifelse(receiving_yards > 99.5 & receiving_yards < 199.5,1,0), rec_200 = ifelse(receiving_yards > 199.5,1,0), rush_100 = ifelse(rushing_yards > 99.5 & rushing_yards < 199.5,1,0), rush_200 = ifelse(rushing_yards > 199.5,1,0), fumbles = sack_fumbles_lost + rushing_fumbles_lost + receiving_fumbles_lost, rush_10 = trunc(carries/10))
+```
+
+## Create Fantasy Points Function
+
+```{r}
+civil_war_fantasy_calculator <- function(playerstats, pass_yards_pts = 0.04, completed_pts = 1, incomplete_pts = -0.5, pass_td_pts = 6, int_pts = -3, pass_2conv_pts = 2, p300_pts = 2, p400_pts = 5, sack_pts = -2, rush_yards_pts = 0.1, rush_10_pts = 0.5, rush_td_pts = 6, rush_first_pts = 1, rush_2conv_pts = 2, r100_pts = 2, r200_pts = 5, rec_yards_pts = 0.1, rec_pts = 1, rec_td_pts = 6, rec_2conv_pts = 2, rec100_pts = 2, rec200_pts = 5, tar_pts = 0.1, fumble_pts = -2) {
+  playerstats <- playerstats %>% mutate(pass_points = (passing_yards * pass_yards_pts) + (completions * completed_pts) + (incompletions * incomplete_pts) + (passing_tds * pass_td_pts) + (interceptions * int_pts) + (passing_2pt_conversions * pass_2conv_pts) + (pass_300 * p300_pts) + (pass_400 * p400_pts) + (sacks * sack_pts) + (fumbles * fumble_pts), rush_points = (rushing_yards * rush_yards_pts) + (rush_10 * rush_10_pts) + (rushing_tds * rush_td_pts) + (rushing_first_downs * rush_first_pts) + (rushing_2pt_conversions * rush_2conv_pts) + (rush_100 * r100_pts) + (rush_200 * r200_pts), rec_points = (receiving_yards * rec_yards_pts) + (receptions * rec_pts) + (receiving_tds * rec_td_pts) + (receiving_2pt_conversions * rec_2conv_pts) + (rec_100 * rec100_pts) + (rec_200 * rec200_pts) + (targets * tar_pts), total_points = pass_points + rush_points + rec_points)
+  return(playerstats)
+}
+```
+
+## QB Report
+
+```{r}
+fantasy_qb_week_7 <- playerstats %>% filter(week == 7, position == "QB", attempts > 10)
+
+wade_civil_war_qb7 <- civil_war_fantasy_calculator(fantasy_qb_week_7)
+
+plot_for_qb7 <- ggplot(wade_civil_war_qb7, aes(x = total_points, y = total_points)) + geom_mean_lines(aes(x0 = total_points, y0 = total_points)) + geom_nfl_headshots(aes(player_gsis = player_id), width = 0.055)
+
+plot_for_qb7
+```
+
+```{r}
+wade_civil_war_qb7 %>% arrange(desc(total_points)) %>% group_by(player_display_name) %>% summarize(total_points)
+```
+
+## RB Report
+
+```{r}
+fantasy_rb_week_7 <- playerstats %>% filter(week == 7, position == "RB")
+
+wade_civil_war_rb7 <- civil_war_fantasy_calculator(fantasy_rb_week_7)
+wade_civil_war_rb7 <- wade_civil_war_rb7 %>% arrange(desc(total_points)) %>% slice_head(n = 20)
+
+plot_for_rb7 <- ggplot(wade_civil_war_rb7, aes(x = total_points, y = total_points)) + geom_mean_lines(aes(x0 = total_points, y0 = total_points)) + geom_nfl_headshots(aes(player_gsis = player_id), width = 0.055)
+
+plot_for_rb7
+```
+
+```{r}
+wade_civil_war_rb7 %>% arrange(desc(total_points)) %>% group_by(player_display_name) %>% summarize(total_points)
+```
+
+
+## WR Report
+
+```{r}
+fantasy_wr_week_7 <- playerstats %>% filter(week == 7, position == "WR")
+
+wade_civil_war_wr7 <- civil_war_fantasy_calculator(fantasy_wr_week_7)
+wade_civil_war_wr7 <- wade_civil_war_wr7 %>% arrange(desc(total_points)) %>% slice_head(n = 20)
+
+plot_for_wr7 <- ggplot(wade_civil_war_wr7, aes(x = total_points, y = total_points)) + geom_mean_lines(aes(x0 = total_points, y0 = total_points)) + geom_nfl_headshots(aes(player_gsis = player_id), width = 0.055)
+
+plot_for_wr7
+```
+
+```{r}
+wade_civil_war_wr7 %>% arrange(desc(total_points)) %>% group_by(player_display_name) %>% summarize(total_points)
+```
+

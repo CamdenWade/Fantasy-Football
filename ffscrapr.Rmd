@@ -1,0 +1,60 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(ffscrapr)
+library(tidyverse)
+```
+
+```{r}
+espn_league <- espn_connect(season = 2024, league_id = 415728081, swid = "C213AEF2-9579-4315-B825-A0630E04DFBB", espn_s2 = "AECzTRoai%2BNPA0qDpn4RXox2J%2BXTpMmLLCd87d7G%2Bv1VtsSZF4ln%2BKciRIToxPRlb7nqqiLObtlKGmkI30NMxji%2BmgZaGawZFcGsLrOwQztoB%2FwMQVhpE2Al2bdqw%2FVsJPxwYc8ckwQpaeOihBus0XFXGKMLiu8Ox8oz5FTI%2BiVcYF2nMEtRVaEOAuTFDPnj1V2JQgkar1cg9JVqQfPWIKpnTkBwGQcP14J0%2FTBhtrqwfBnRpEAD8vms4%2BZdC1ElCCljmw8EnuCZgKATjZibvMXUnY%2FZGQB20XeEB%2FxSXUnSHQ%3D%3D" )
+espn_league
+```
+
+```{r}
+espn_league_summary <- ff_league(espn_league)
+```
+
+```{r}
+str(espn_league_summary)
+```
+
+```{r}
+espn_league_rosters <- ff_rosters(espn_league)
+```
+
+```{r}
+espn_players(conn = espn_league)
+```
+
+```{r}
+espn_projections <- espn_potentialpoints(conn = espn_league, weeks = 9)
+
+my_projection <- espn_projections %>% filter(franchise_name == "Lamarican Airlines")
+```
+
+```{r}
+ff_playerscores(espn_league)
+```
+
+```{r}
+wade_civil_war_league <- espn_connect(season = 2024, league_id = 1917309, swid = "C213AEF2-9579-4315-B825-A0630E04DFBB", espn_s2 = "AEBAeCvJWTctyUB0Vn2AdwIKRifeSIq9TJDoyq7uGAgVgcMzBMmYm4Twiwke88bMmUExoCAFNj9Gn8c8tg6tQOBtQoJybDY9TsEc29f6xvmbdHwJFEBUk2fpuqP4cBu2cIQ2OmIBckoHzHuOMeI7tXUefyQSITolft%2FFXYffwH%2FM8FNE4sg3s1m3SeeGMDT4PTnkCZXcepgb4X5cIiWeBCOwpzOuYefnAc%2B77zDGs9UIcCE%2FGAvqB0BjrdVsmkgIlZQCRNUzdLdM6yREpeF1Wk57UaZRuN91UJ12kmMcyhHOoA%3D%3D")
+```
+
+```{r}
+wade_civil_war_summary <- ff_league(wade_civil_war_league)
+
+civil_war_projections <- espn_potentialpoints(conn = wade_civil_war_league, weeks = 1:17)
+
+my_team_projections <- civil_war_projections %>% filter(franchise_name == "Kyler Ren")
+
+total_projection <- my_team_projections %>%
+  summarize(total_points = sum(franchise_score, na.rm = TRUE))
+```
+
+```{r}
+civil_war_players <- ff_playerscores(wade_civil_war_league, season = 2024, week = 8)
+```
+
